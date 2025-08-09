@@ -578,7 +578,7 @@ class MdxmSurface:
         else:
 
             uv_layer = mesh.uv_layers.active
-            if not uv_layer or not (uv_layer_data := uv_layer.data):
+            if (not uv_layer or not (uv_layer_data := uv_layer.data)) and len(mesh.polygons) > 0:
                 return False, ErrorMessage("No UV coordinates found!")
 
             protoverts = []
