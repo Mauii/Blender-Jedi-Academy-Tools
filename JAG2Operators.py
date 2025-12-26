@@ -206,11 +206,26 @@ class GLMExport(bpy.types.Operator):
         if not success:
             self.report({'ERROR'}, message)
             return {'FINISHED'}
+        self._report_vertex_limit_warnings(scene.glm)
         # try to save
         success, message = scene.saveToGLM(filepath)
         if not success:
             self.report({'ERROR'}, message)
         return {'FINISHED'}
+
+    def _report_vertex_limit_warnings(self, glm) -> None:
+        warnings = getattr(glm, "vertex_count_warnings", None)
+        if not warnings:
+            return
+        detail_limit = 3
+        detail_parts = [f"{name} ({count} verts)" for name, count in warnings[:detail_limit]]
+        extra = len(warnings) - len(detail_parts)
+        detail = ", ".join(detail_parts)
+        if extra > 0:
+            detail = f"{detail}, +{extra} more"
+        self.report(
+            {'WARNING'},
+            f"Ghoul 2 surfaces are capped at 1000 verts after UV/normal splitting; these objects exceed it: {detail}")
 
     def invoke(self, context, event):
         wm = context.window_manager
