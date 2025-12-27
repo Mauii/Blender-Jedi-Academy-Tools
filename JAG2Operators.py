@@ -238,8 +238,14 @@ class GLMExport(bpy.types.Operator):
 
     def draw(self, context):
         layout = self.layout
+        awaiting_confirmation = getattr(self, "_awaiting_overwrite_confirmation", False)
         message = getattr(self, "_overwrite_prompt_message", "")
-        layout.label(text=message or "A `model.glm` already exists. Overwrite it?")
+        if awaiting_confirmation:
+            if message:
+                layout.label(text=message)
+        else:
+            layout.prop(self, "basepath")
+            layout.prop(self, "gla")
 
     def _popup_context(self, context):
         override = _ContextProxy(context.copy())
