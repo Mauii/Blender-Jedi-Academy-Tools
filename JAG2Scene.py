@@ -31,13 +31,17 @@ from .casts import optional_cast
 
 import bpy
 
+_scene_root_counter = 0
 
-def findSceneRootObject() -> Optional[bpy.types.Object]:
-    scene_root = None
-    if "scene_root" in bpy.data.objects:
-        # if so, use that
-        scene_root = bpy.data.objects["scene_root"]
-    return scene_root
+
+def _next_scene_root_name() -> str:
+    global _scene_root_counter
+    while True:
+        suffix = "" if _scene_root_counter == 0 else f"_{_scene_root_counter}"
+        name = f"scene_root{suffix}"
+        _scene_root_counter += 1
+        if name not in bpy.data.objects:
+            return name
 
 
 class Scene:
@@ -47,6 +51,7 @@ class Scene:
         self.scale = 1.0
         self.glm: Optional[JAG2GLM.GLM] = None
         self.gla: Optional[JAG2GLA.GLA] = None
+        self.loaded_glm_rel: Optional[str] = None
 
     # Fills scene from on GLM file
     def loadFromGLM(self, glm_filepath_rel: str) -> Tuple[bool, ErrorMessage]:
@@ -60,6 +65,7 @@ class Scene:
         success, message = self.glm.loadFromFile(glm_filepath_abs)
         if not success:
             return False, message
+        self.loaded_glm_rel = glm_filepath_rel
         return True, NoError
 
     # Loads scene from on GLA file
@@ -128,17 +134,13 @@ class Scene:
     # "saves" the scene to blender
     # skeletonFixes is an enum with possible skeleton fixes - e.g. 'JKA' for connection- and
     def saveToBlender(self, scale, skin_rel, guessTextures: bool, useAnimation: bool, skeletonFixes: JAG2Constants.SkeletonFixes) -> Tuple[bool, ErrorMessage]:
-        # is there already a scene root in blender?
-        scene_root = findSceneRootObject()
-        if scene_root:
-            # make sure it's linked to the current scene
-            if not "scene_root" in bpy.context.scene.collection.objects:
-                bpy.context.scene.collection.objects.link(scene_root)
-        else:
-            # create it otherwise
-            scene_root = bpy.data.objects.new("scene_root", None)
-            scene_root.scale = (scale, scale, scale)
-            bpy.context.scene.collection.objects.link(scene_root)
+        scene_root_name = _next_scene_root_name()
+        scene_root = bpy.data.objects.new(scene_root_name, None)
+        scene_root.scale = (scale, scale, scale)
+        normalized_glm = JAG2GLM._normalize_glm_path(self.loaded_glm_rel)
+        if normalized_glm:
+            scene_root.g2_prop_glm_name = normalized_glm
+        bpy.context.scene.collection.objects.link(scene_root)
         # there's always a skeleton (even if it's *default)
         success, message = optional_cast(JAG2GLA.GLA, self.gla).saveToBlender(
             scene_root, useAnimation, skeletonFixes)
