@@ -49,6 +49,10 @@ def _next_skeleton_name() -> str:
             return name
 
 
+def _find_existing_skeleton_root() -> Optional[bpy.types.Object]:
+    return bpy.data.objects.get("skeleton_root")
+
+
 def _normalize_gla_path(gla_path: Union[str, bytes]) -> str:
     if gla_path is None:
         return ""
@@ -264,9 +268,9 @@ class MdxaSkel:
             bone.saveToFile(file)
 
     def fitsArmature(self, armature) -> Tuple[bool, ErrorMessage]:
-        for bone in self.bones:
-            if not bone.name in armature.bones:
-                return False, ErrorMessage(f"Bone {bone.name} not found in existing skeleton_root armature!")
+        missing_bones = [bone.name for bone in self.bones if bone.name not in armature.bones]
+        for bone_name in missing_bones:
+            print(f"Warning: Bone {bone_name} not found in existing skeleton_root armature!")
         return True, NoError
 
     def saveToBlender(self, scene_root: bpy.types.Object, skeletonFixes: JAG2Constants.SkeletonFixes, skeleton_name: str) -> Tuple[bool, ErrorMessage]:
@@ -802,6 +806,19 @@ class GLA:
         profiler = MrwProfiler.SimpleProfiler(True)
         if self.isDefault:
             return True, NoError
+
+        if self.skeleton_object is None or self.skeleton_armature is None:
+            existing_skeleton = _find_existing_skeleton_root()
+            if existing_skeleton:
+                if existing_skeleton.type != 'ARMATURE':
+                    return False, ErrorMessage("skeleton_root is no Armature!")
+                existing_armature = downcast(
+                    bpy.types.Armature, existing_skeleton.data)
+                success, message = self.skeleton.fitsArmature(existing_armature)
+                if not success:
+                    return False, message
+                self.skeleton_object = existing_skeleton
+                self.skeleton_armature = existing_armature
 
         def _apply_animations() -> None:
             profiler.start("applying animations")
